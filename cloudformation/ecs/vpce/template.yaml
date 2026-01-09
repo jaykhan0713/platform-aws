@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Minimal VPC Endpoints for private-subnet ECS with no NAT (ECR, Logs, S3)
+Description: 'Minimal VPC Endpoints for private-subnet ECS with no NAT (ECR, Logs, S3)'
 
 Parameters:
   VpcId:
@@ -39,7 +39,13 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: vpc-endpoints-sg
+          Value: vpc-endpoints-sg-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
   # -------- Interface Endpoints (PrivateLink) --------
 
@@ -55,6 +61,15 @@ Resources:
         - !Ref PrivateSubnetBId
       SecurityGroupIds:
         - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ecr-api-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
   EcrDkrVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
@@ -68,6 +83,15 @@ Resources:
         - !Ref PrivateSubnetBId
       SecurityGroupIds:
         - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ecr-dkr-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
   CloudWatchLogsVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
@@ -81,6 +105,15 @@ Resources:
         - !Ref PrivateSubnetBId
       SecurityGroupIds:
         - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: logs-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
   # -------- Gateway Endpoint (S3) --------
   # Key piece for ECR image layers (stored in S3 behind the scenes).
@@ -100,6 +133,15 @@ Resources:
             Principal: "*"
             Action: "s3:*"
             Resource: "*"
+      Tags:
+        - Key: Name
+          Value: s3-gateway-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
 Outputs:
   VpcEndpointSecurityGroupId:
