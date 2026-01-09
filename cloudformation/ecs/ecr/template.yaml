@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECR repositories for jay-platform (prod). One repo per service.
+Description: 'ECR repositories for jay-platform. One repo per service.'
 
 Parameters:
   ProjectTag:
