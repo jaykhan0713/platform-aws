@@ -53,7 +53,7 @@ Resources:
         - Key: Project
           Value: !Ref ProjectTag
         - Key: ManagedBy
-          Value: cloudformation
+          Value: !Ref ManagedByTag
 
 Outputs:
   EdgeServiceRepositoryName:
