@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECR repositories for jay-platform (prod). One repo per service.
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: jay-platform
+  EnvTag:
+    Type: String
+    Default: prod
+
+Resources:
+  EdgeServiceRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: jay-platform/edge-service
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images older than 7 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 3
+                },
+                "action": { "type": "expire" }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Keep last 30 git-tagged images",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPrefixList": ["git-"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: jay-platform-edge-service-repo-prod
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: cloudformation
+
+Outputs:
+  EdgeServiceRepositoryName:
+    Value: !Ref EdgeServiceRepository
+
+  EdgeServiceRepositoryUri:
+    Value: !GetAtt EdgeServiceRepository.RepositoryUri
