@@ -5,9 +5,9 @@ Parameters:
   ProjectTag:
     Type: String
     Default: jay-platform
-  EnvTag:
+  ManagedByTag:
     Type: String
-    Default: prod
+    Default: cloudformation
 
 Resources:
   EdgeServiceRepository:
@@ -52,8 +52,6 @@ Resources:
           Value: jay-platform-edge-service-repo-prod
         - Key: Project
           Value: !Ref ProjectTag
-        - Key: Env
-          Value: !Ref EnvTag
         - Key: ManagedBy
           Value: cloudformation
 
