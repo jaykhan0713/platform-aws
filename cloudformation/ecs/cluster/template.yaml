@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: jay-platform ECS cluster cfn stack (prod)
+
+Resources:
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ecs-cluster-prod
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Name
+          Value: ecs-cluster-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
+
+Outputs:
+  ClusterName:
+    Description: ECS cluster name
+    Value: !Ref EcsCluster
+
+  ClusterArn:
+    Description: ECS cluster ARN
+    Value: !GetAtt EcsCluster.Arn

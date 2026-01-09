@@ -1,3 +1,5 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -167,3 +169,7 @@ Outputs:
     Value: !Ref PrivateSubnetA
   PrivateSubnetBId:
     Value: !Ref PrivateSubnetB
+  PrivateRouteTableId:
+    Value: !Ref PrivateRouteTable
+  VpcCidr:
+    Value: 10.0.0.0/16

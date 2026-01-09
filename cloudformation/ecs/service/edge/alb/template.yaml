@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: jay-platform edge ALB stack (internal) with blue/green target groups for ECS blue green deployments
+
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id

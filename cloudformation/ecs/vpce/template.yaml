@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: VPC Endpoints for private-subnet ECS with no NAT (ECR, Logs, S3, optional SSM/STS)
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  PrivateSubnetAId:
+    Type: AWS::EC2::Subnet::Id
+
+  PrivateSubnetBId:
+    Type: AWS::EC2::Subnet::Id
+
+  PrivateRouteTableId:
+    Type: String
+    Description: Route table id for private subnets (rtb-xxxx)
+
+  VpcCidr: #note to fine tune this to per ECS task
+    Type: String
+    Description: 'VPC CIDR (example: 10.0.0.0/16). Used to allow HTTPS to endpoints from inside VPC.'
+    Default: 10.0.0.0/16
+
+  EnableSsmEndpoints:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Create SSM endpoints to support Session Manager and ECS Exec later
+
+  EnableStsEndpoint:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Create STS endpoint (helps avoid auth edge cases in private subnets)
+
+Conditions:
+  CreateSsm: !Equals [!Ref EnableSsmEndpoints, "true"]
+  CreateSts: !Equals [!Ref EnableStsEndpoint, "true"]
+
+Resources:
+  # One SG shared by interface endpoints.
+  # Starter rule: allow 443 from the entire VPC CIDR.
+  # Later you can tighten to "from ECS tasks SG only".
+  VpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTPS to VPC interface endpoints from inside VPC
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: vpc-endpoints-sg
+
+  # -------- Interface Endpoints (PrivateLink) --------
+
+  EcrApiVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ecr.api"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  EcrDkrVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ecr.dkr"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  CloudWatchLogsVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.logs"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  # Optional but strongly recommended for debugging and ECS Exec later
+  SsmVpcEndpoint:
+    Condition: CreateSsm
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssm"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  SsmMessagesVpcEndpoint:
+    Condition: CreateSsm
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssmmessages"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  Ec2MessagesVpcEndpoint:
+    Condition: CreateSsm
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ec2messages"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  # Optional STS endpoint
+  StsVpcEndpoint:
+    Condition: CreateSts
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.sts"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+
+  # -------- Gateway Endpoint (S3) --------
+  # This is the key piece for ECR image layers behind the scenes.
+  S3GatewayVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      RouteTableIds:
+        - !Ref PrivateRouteTableId
+
+Outputs:
+  VpcEndpointSecurityGroupId:
+    Value: !Ref VpcEndpointSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcEndpointSecurityGroupId"
+
+  EcrApiVpcEndpointId:
+    Value: !Ref EcrApiVpcEndpoint
+
+  EcrDkrVpcEndpointId:
+    Value: !Ref EcrDkrVpcEndpoint
+
+  CloudWatchLogsVpcEndpointId:
+    Value: !Ref CloudWatchLogsVpcEndpoint
+
+  S3GatewayVpcEndpointId:
+    Value: !Ref S3GatewayVpcEndpoint
