@@ -1,0 +1,465 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'jay-platform edge-service: internal ALB + blue/green target groups
+  + ECS Fargate service + taskdef + CodeDeploy (API GW VPC Link upstream)'
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: jay-platform
+  EnvTag:
+    Type: String
+    Default: prod
+
+  ManagedByTag:
+    Type: String
+    Default: cloudformation
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  PrivateSubnetAId:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnetBId:
+    Type: AWS::EC2::Subnet::Id
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+
+  ClusterName:
+    Type: String
+    Description: 'ECS cluster name (example: ecs-cluster-prod)'
+
+  ServiceName:
+    Type: String
+    Default: edge-service-prod
+    Description: ECS service name (used by CodeDeploy too)
+
+  ContainerImage:
+    Type: String
+    Description: Full ECR image URI, e.g.
+      <ACCOUNT_ID>...amazonaws.com/jay-platform/edge-service:git-<sha>
+
+  ContainerPort:
+    Type: Number
+    Default: 8080
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+
+  Cpu:
+    Type: String
+    Default: '512'
+    AllowedValues:
+      - '256'
+      - '512'
+      - '1024'
+      - '2048'
+      - '4096'
+
+  Memory:
+    Type: String
+    Default: '1024'
+    AllowedValues:
+      - '512'
+      - '1024'
+      - '2048'
+      - '3072'
+      - '4096'
+      - '8192'
+      - '16384'
+      - '30720'
+
+Resources:
+  # -----------------------------
+  # CloudWatch Logs
+  # -----------------------------
+  EdgeServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ProjectTag}/${EnvTag}/edge-service
+      RetentionInDays: 14
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-edge-service-logs-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  # -----------------------------
+  # IAM roles
+  # -----------------------------
+  EdgeServiceTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectTag}-edge-task-execution-${EnvTag}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-edge-task-execution-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  EdgeServiceTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectTag}-edge-task-role-${EnvTag}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies: []
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-edge-task-role-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectTag}-codedeploy-ecs-${EnvTag}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-codedeploy-ecs-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  # -----------------------------
+  # Security Groups
+  # -----------------------------
+  EdgeAlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Edge internal ALB SG (upstream is API Gateway VPC Link)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # TODO: Replace these VpcCidr rules with "SourceSecurityGroupId: <VpcLinkSgId>"
+        # once VPC Link is created with a dedicated SG.
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref VpcCidr
+        - IpProtocol: tcp
+          FromPort: 9000
+          ToPort: 9000
+          CidrIp: !Ref VpcCidr
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub edge-alb-sg-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  EdgeServiceTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Edge service task SG (allow 8080 only from ALB)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          SourceSecurityGroupId: !Ref EdgeAlbSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub edge-tasks-sg-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  # -----------------------------
+  # ALB + Blue/Green Target Groups
+  # -----------------------------
+  EdgeInternalAlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub edge-internal-alb-${EnvTag}
+      Scheme: internal
+      Type: application
+      Subnets:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroups:
+        - !Ref EdgeAlbSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub edge-internal-alb-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  EdgeTargetGroupBlue:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub edge-tg-blue-${EnvTag}
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: !Ref ContainerPort
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /actuator/health
+      Matcher:
+        HttpCode: '200'
+      Tags:
+        - Key: Name
+          Value: !Sub edge-tg-blue-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  EdgeTargetGroupGreen:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub edge-tg-green-${EnvTag}
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: !Ref ContainerPort
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /actuator/health
+      Matcher:
+        HttpCode: '200'
+      Tags:
+        - Key: Name
+          Value: !Sub edge-tg-green-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  EdgeProdListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref EdgeInternalAlb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EdgeTargetGroupBlue
+
+  EdgeTestListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref EdgeInternalAlb
+      Port: 9000
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref EdgeTargetGroupGreen
+
+  # -----------------------------
+  # Task Definition
+  # -----------------------------
+  EdgeServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectTag}-edge-service-${EnvTag}
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      ExecutionRoleArn: !GetAtt EdgeServiceTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt EdgeServiceTaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: app
+          Image: !Ref ContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          Environment:
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: !Ref EnvTag
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref EdgeServiceLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-edge-taskdef-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  # -----------------------------
+  # ECS Service (CodeDeploy Blue/Green)
+  # -----------------------------
+  EdgeEcsService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - EdgeProdListener
+      - EdgeTestListener
+    Properties:
+      ServiceName: !Ref ServiceName
+      Cluster: !Ref ClusterName
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      DeploymentController:
+        Type: CODE_DEPLOY
+      TaskDefinition: !Ref EdgeServiceTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnetAId
+            - !Ref PrivateSubnetBId
+          SecurityGroups:
+            - !Ref EdgeServiceTaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref EdgeTargetGroupBlue
+      HealthCheckGracePeriodSeconds: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${ServiceName}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  # -----------------------------
+  # CodeDeploy (ECS Blue/Green)
+  # -----------------------------
+  EdgeCodeDeployApp:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: !Sub ${ProjectTag}-edge-service-${EnvTag}
+      ComputePlatform: ECS
+
+  EdgeCodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - EdgeEcsService
+      - EdgeProdListener
+      - EdgeTestListener
+    Properties:
+      ApplicationName: !Ref EdgeCodeDeployApp
+      DeploymentGroupName: !Sub ${ProjectTag}-edge-dg-${EnvTag}
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 0
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+      ECSServices:
+        - ClusterName: !Ref ClusterName
+          ServiceName: !Ref ServiceName
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - TargetGroups:
+              - Name: !GetAtt EdgeTargetGroupBlue.TargetGroupName
+              - Name: !GetAtt EdgeTargetGroupGreen.TargetGroupName
+            ProdTrafficRoute:
+              ListenerArns:
+                - !Ref EdgeProdListener
+            TestTrafficRoute:
+              ListenerArns:
+                - !Ref EdgeTestListener
+
+Outputs:
+  EdgeAlbArn:
+    Value: !Ref EdgeInternalAlb
+  EdgeAlbDnsName:
+    Value: !GetAtt EdgeInternalAlb.DNSName
+
+  EdgeProdListenerArn:
+    Value: !Ref EdgeProdListener
+  EdgeTestListenerArn:
+    Value: !Ref EdgeTestListener
+
+  EdgeTargetGroupBlueArn:
+    Value: !Ref EdgeTargetGroupBlue
+  EdgeTargetGroupGreenArn:
+    Value: !Ref EdgeTargetGroupGreen
+
+  EdgeAlbSecurityGroupId:
+    Value: !Ref EdgeAlbSecurityGroup
+  EdgeTaskSecurityGroupId:
+    Value: !Ref EdgeServiceTaskSecurityGroup
+
+  EdgeServiceName:
+    Value: !Ref ServiceName
+
+  TaskDefinitionArn:
+    Value: !Ref EdgeServiceTaskDefinition
+
+  CodeDeployAppName:
+    Value: !Ref EdgeCodeDeployApp
+  CodeDeployDeploymentGroupName:
+    Value: !Ref EdgeCodeDeployDeploymentGroup
