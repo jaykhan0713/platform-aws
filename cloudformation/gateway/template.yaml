@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'jay-platform API Gateway VPC connectivity. Defines a reusable VPC Link and security group for private integrations. Intended to be referenced by HTTP APIs.'
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: jay-platform
+
+  EnvTag:
+    Type: String
+    Default: prod
+
+  ManagedByTag:
+    Type: String
+    Default: cloudformation
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC that hosts private integrations'
+
+  PrivateSubnetAId:
+    Type: AWS::EC2::Subnet::Id
+    Description: 'First private subnet for VPC Link ENIs'
+
+  PrivateSubnetBId:
+    Type: AWS::EC2::Subnet::Id
+    Description: 'Second private subnet for VPC Link ENIs'
+
+Resources:
+  ApiGatewayVpcLinkSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'API Gateway VPC Link security group for private integrations (ALB or NLB)'
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub apigw-vpclink-sg-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  ApiGatewayVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Sub ${ProjectTag}-apigw-vpclink-${EnvTag}
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref ApiGatewayVpcLinkSecurityGroup
+      Tags:
+        Project: !Ref ProjectTag
+        Env: !Ref EnvTag
+        ManagedBy: !Ref ManagedByTag
+
+Outputs:
+  ApiGatewayVpcLinkId:
+    Description: 'VPC Link ID for HTTP API integrations'
+    Value: !Ref ApiGatewayVpcLink
+
+  ApiGatewayVpcLinkSecurityGroupId:
+    Description: 'Security group used by API Gateway VPC Link ENIs'
+    Value: !Ref ApiGatewayVpcLinkSecurityGroup
