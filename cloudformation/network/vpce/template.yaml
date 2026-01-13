@@ -115,6 +115,29 @@ Resources:
         - Key: ManagedBy
           Value: cloudformation
 
+  AmpVpcEndpoint: #For AWS grafana
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.aps-workspaces"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: amp-aps-workspaces-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
+
+
   # -------- Gateway Endpoint (S3) --------
   # Key piece for ECR image layers (stored in S3 behind the scenes).
   S3GatewayVpcEndpoint:
@@ -158,3 +181,6 @@ Outputs:
 
   S3GatewayVpcEndpointId:
     Value: !Ref S3GatewayVpcEndpoint
+
+  AmpVpcEndpointId:
+    Value: !Ref AmpVpcEndpoint

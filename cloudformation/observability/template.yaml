@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'jay-platform observability: AMP (prometheus) workspace + shared outputs for ADOT per-task sidecars'
+
+Parameters:
+  ProjectTag:
+    Type: String
+    Default: jay-platform
+  EnvTag:
+    Type: String
+    Default: prod
+  ManagedByTag:
+    Type: String
+    Default: cloudformation
+
+Resources:
+  AmpWorkspace:
+    Type: AWS::APS::Workspace
+    Properties:
+      Alias: !Sub ${ProjectTag}-${EnvTag}-amp
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-amp-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+Outputs:
+  AmpWorkspaceId:
+    Description: Pass into service stacks for IAM scoping and URL construction
+    Value: !Ref AmpWorkspace
+
+  AmpWorkspaceArn:
+    Description: AMP workspace ARN (useful for IAM policies)
+    Value: !GetAtt AmpWorkspace.Arn
+
+  AmpRemoteWriteEndpoint:
+    Description: ADOT remote_write endpoint for metrics ingestion
+    Value: !Sub https://aps-workspaces.${AWS::Region}.amazonaws.com/workspaces/${AmpWorkspace}/api/v1/remote_write
+
+  AmpQueryEndpoint:
+    Description: Grafana Prometheus datasource base URL (SigV4)
+    Value: !Sub https://aps-workspaces.${AWS::Region}.amazonaws.com/workspaces/${AmpWorkspace}

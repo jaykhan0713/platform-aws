@@ -55,9 +55,62 @@ Resources:
         - Key: ManagedBy
           Value: !Ref ManagedByTag
 
+  AdotCollectorRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: jay-platform/adot-collector
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images older than 3 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 3
+                },
+                "action": { "type": "expire" }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Keep last 5 git-tagged images",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPrefixList": ["git-"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: jay-platform-adot-collector-repo
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
 Outputs:
+  # Services
   EdgeServiceRepositoryName:
     Value: !Ref EdgeServiceRepository
 
   EdgeServiceRepositoryUri:
     Value: !GetAtt EdgeServiceRepository.RepositoryUri
+
+  # Observability
+  AdotCollectorRepositoryName:
+    Value: !Ref AdotCollectorRepository
+
+  AdotCollectorRepositoryUri:
+    Value: !GetAtt AdotCollectorRepository.RepositoryUri
