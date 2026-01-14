@@ -6,7 +6,7 @@ receivers:
           metrics_path: /actuator/prometheus
           scrape_interval: 15s
           static_configs:
-            - targets: ['app:${APP_PORT}']
+            - targets: ['127.0.0.1:${APP_PORT}']
           relabel_configs:
             - target_label: service
               replacement: ${SERVICE_NAME}
@@ -24,6 +24,9 @@ exporters:
       authenticator: sigv4auth
 
 service:
+  telemetry:
+    logs:
+      level: "debug"
   extensions: [sigv4auth]
   pipelines:
     metrics:
