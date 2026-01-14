@@ -13,6 +13,14 @@ receivers:
             - target_label: env
               replacement: ${ENV}
 
+  # receive traces from your app via OTLP
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
 extensions:
   sigv4auth:
     region: ${AWS_REGION}
@@ -23,6 +31,10 @@ exporters:
     auth:
       authenticator: sigv4auth
 
+  # export traces to AWS X-Ray
+  awsxray:
+    region: ${AWS_REGION}
+
 service:
   telemetry:
     logs:
@@ -32,3 +44,8 @@ service:
     metrics:
       receivers: [prometheus]
       exporters: [prometheusremotewrite]
+
+    # NEW: traces pipeline (OTLP in, X-Ray out)
+    traces:
+      receivers: [otlp]
+      exporters: [awsxray]

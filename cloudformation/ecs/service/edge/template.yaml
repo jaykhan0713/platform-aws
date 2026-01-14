@@ -443,7 +443,7 @@ Resources:
         - ContainerName: app
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref EdgeTargetGroupBlue
-      HealthCheckGracePeriodSeconds: 30
+      HealthCheckGracePeriodSeconds: 60
       Tags:
         - Key: Name
           Value: !Sub ${ServiceName}

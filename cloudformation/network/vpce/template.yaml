@@ -115,7 +115,7 @@ Resources:
         - Key: ManagedBy
           Value: cloudformation
 
-  AmpVpcEndpoint: #For AWS grafana
+  AmpVpcEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
       VpcEndpointType: Interface
@@ -137,6 +137,27 @@ Resources:
         - Key: ManagedBy
           Value: cloudformation
 
+  XRayVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.xray"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: xray-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
   # -------- Gateway Endpoint (S3) --------
   # Key piece for ECR image layers (stored in S3 behind the scenes).
@@ -184,3 +205,6 @@ Outputs:
 
   AmpVpcEndpointId:
     Value: !Ref AmpVpcEndpoint
+
+  XRayVpcEndpointId:
+    Value: !Ref XRayVpcEndpoint
