@@ -71,6 +71,21 @@ Parameters:
       - '16384'
       - '30720'
 
+  # AMP (Amazon Managed Service for Prometheus) workspace wiring.
+  # These values should come from the per-env "observability" stack outputs.
+  AmpWorkspaceId:
+    Type: String
+    Description: 'AMP workspace id (example: ws-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)'
+
+  AmpRemoteWriteEndpoint:
+    Type: String
+    Description: AMP remote_write endpoint from observability stack output
+
+  # Shared ADOT collector image (baked config). Built once and reused across services.
+  AdotCollectorImage:
+    Type: String
+    Description: Full ECR image URI for shared ADOT collector config image
+
 Resources:
   # -----------------------------
   # CloudWatch Logs
@@ -83,6 +98,22 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-service-logs-${EnvTag}
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Env
+          Value: !Ref EnvTag
+        - Key: ManagedBy
+          Value: !Ref ManagedByTag
+
+  # ADOT collector logs (sidecar per task)
+  EdgeAdotLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ProjectTag}/${EnvTag}/edge-service-adot
+      RetentionInDays: 14
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectTag}-edge-service-adot-logs-${EnvTag}
         - Key: Project
           Value: !Ref ProjectTag
         - Key: Env
@@ -127,7 +158,18 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
-      Policies: []
+      # Task role is for runtime AWS API calls made by the task containers.
+      # ADOT collector uses SigV4 to remote_write metrics into AMP (aps:RemoteWrite).
+      Policies:
+        - PolicyName: AllowAmpRemoteWrite
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AmpRemoteWrite
+                Effect: Allow
+                Action:
+                  - aps:RemoteWrite
+                Resource: !Sub arn:aws:aps:${AWS::Region}:${AWS::AccountId}:workspace/${AmpWorkspaceId}
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-task-role-${EnvTag}
@@ -304,7 +346,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref EdgeTargetGroupGreen
 
-  # -----------------------------
+  # ----------------------------- TODO:Remove and use pipeline for task definition
   # Task Definition
   # -----------------------------
   EdgeServiceTaskDefinition:
@@ -337,6 +379,29 @@ Resources:
               awslogs-group: !Ref EdgeServiceLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+        # ADOT Collector sidecar: scrapes /actuator/prometheus locally and remote_writes into AMP.
+        # IMPORTANT: Essential=false so the app stays healthy even if the collector misconfigures/crashes.
+        - Name: adot-collector
+          Image: !Ref AdotCollectorImage
+          Essential: false
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: AMP_REMOTE_WRITE_ENDPOINT
+              Value: !Ref `AmpRemoteWriteEndpoint
+            - Name: SERVICE_NAME
+              Value: !Ref ServiceName
+            - Name: ENV
+              Value: !Ref EnvTag
+            - Name: APP_PORT
+              Value: !Ref ContainerPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref EdgeAdotLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-taskdef-${EnvTag}
@@ -363,7 +428,9 @@ Resources:
       PlatformVersion: LATEST
       DeploymentController:
         Type: CODE_DEPLOY
-      TaskDefinition: !Ref EdgeServiceTaskDefinition
+      #TaskDefinition: !Ref EdgeServiceTaskDefinition
+      # IMPORTANT: CODE_DEPLOY controls TaskDefinition updates and deployments.
+      # CloudFormation must not attempt to update TaskDefinition on a CODE_DEPLOY service.
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED

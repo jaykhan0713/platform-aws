@@ -1,2 +1,2 @@
 - Health liveness + readiness check
-- 
+- Remove taskdefinition handling and keep it to pipeline

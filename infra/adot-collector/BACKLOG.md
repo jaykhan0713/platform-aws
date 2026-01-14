@@ -1,0 +1,2 @@
+- Currently this image has to be manually pushed to docker. Can IaC this.
+- FROM public.ecr.aws/aws-observability/aws-otel-collector:latest, change latest to a stable base.

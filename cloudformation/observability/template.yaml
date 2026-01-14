@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'jay-platform observability: AMP (prometheus) workspace + shared outputs for ADOT per-task sidecars'
+Description: 'jay-platform observability: AMP (prometheus) workspace + shared
+  outputs for ADOT per-task sidecars'
 
 Parameters:
   ProjectTag:
@@ -29,17 +30,27 @@ Resources:
 
 Outputs:
   AmpWorkspaceId:
-    Description: Pass into service stacks for IAM scoping and URL construction
-    Value: !Ref AmpWorkspace
+    Description: Workspace ID (ws-...) for URL paths
+    Value: !GetAtt AmpWorkspace.WorkspaceId
 
   AmpWorkspaceArn:
     Description: AMP workspace ARN (useful for IAM policies)
     Value: !GetAtt AmpWorkspace.Arn
 
+  AmpPrometheusEndpoint:
+    Description: AMP Prometheus endpoint (ends with /api/v1/)
+    Value: !Sub
+      - ${URL}api/v1/
+      - URL: !GetAtt AmpWorkspace.PrometheusEndpoint
+
   AmpRemoteWriteEndpoint:
     Description: ADOT remote_write endpoint for metrics ingestion
-    Value: !Sub https://aps-workspaces.${AWS::Region}.amazonaws.com/workspaces/${AmpWorkspace}/api/v1/remote_write
+    Value: !Sub
+      - ${URL}api/v1/remote_write
+      - URL: !GetAtt AmpWorkspace.PrometheusEndpoint
 
   AmpQueryEndpoint:
     Description: Grafana Prometheus datasource base URL (SigV4)
-    Value: !Sub https://aps-workspaces.${AWS::Region}.amazonaws.com/workspaces/${AmpWorkspace}
+    Value: !Sub
+      - https://aps-workspaces.${AWS::Region}.amazonaws.com/workspaces/${WsId}
+      - WsId: !GetAtt AmpWorkspace.WorkspaceId
