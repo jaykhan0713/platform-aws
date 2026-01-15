@@ -22,6 +22,56 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
+  # Calls ECS task metadata endpoint, available inside task
+  # Adds resource attributes like cluster, task ARN, container name, etc
+  resourcedetection/ecs:
+    detectors: [ecs]
+    timeout: 2s
+    override: false
+
+  # create friendly names
+  attributes/ecs_labels:
+    actions:
+      # 1) Extract a short task id from the ARN into ecs_task
+      #    Example ARN: ...:task/ecs-cluster-prod/1234567890abcdef
+      - key: ecs_task
+        action: extract
+        from_attribute: aws.ecs.task.arn
+        pattern: ".*/(?P<ecs_task>[^/]+)$"
+
+      # 2) Copy image tag (your gitsha-buildnumber) into deploy
+      - key: git_sha_build
+        action: upsert
+        from_attribute: aws.ecs.container.image.tag
+
+      # 3) container name i.e "app" or "adot-collector"
+      - key: container
+        action: upsert
+        from_attribute: aws.ecs.container.name
+
+  #drop everything else
+  attributes/ecs_cleanup:
+    actions:
+      - key: cloud.account.id
+        action: delete
+      - key: cloud.region
+        action: delete
+      - key: cloud.provider
+        action: delete
+
+      - key: aws.ecs.task.arn
+        action: delete
+      - key: aws.ecs.cluster.arn
+        action: delete
+      - key: aws.ecs.cluster.name
+        action: delete
+      - key: aws.ecs.container.name
+        action: delete
+      - key: aws.ecs.container.image.name
+        action: delete
+      - key: aws.ecs.container.image.tag
+        action: delete
+
   attributes/http_normalize: # map spring otlp starter keys to xray keys
     actions:
       # Build standard HTTP semconv keys from what you actually receive
@@ -73,6 +123,8 @@ exporters:
     endpoint: ${AMP_REMOTE_WRITE_ENDPOINT}
     auth:
       authenticator: sigv4auth
+    resource_to_telemetry_conversion: #ecs metadata become labels on time series.
+      enabled: true
 
   # export traces to AWS X-Ray
   awsxray:
@@ -86,10 +138,11 @@ service:
   pipelines:
     metrics:
       receivers: [prometheus]
+      processors: [resourcedetection/ecs,attributes/ecs_labels,attributes/ecs_cleanup]
       exporters: [prometheusremotewrite]
 
     #traces pipeline (OTLP in, X-Ray out)
     traces:
       receivers: [otlp]
-      processors: [attributes/http_normalize, filter/drop_actuator_spans]
+      processors: [attributes/http_normalize, filter/drop_actuator_spans,attributes/ecs_cleanup]
       exporters: [awsxray]
