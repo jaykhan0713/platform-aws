@@ -29,29 +29,47 @@ processors:
     timeout: 2s
     override: false
 
-  transform/ecs_labels:
-    error_mode: ignore
-    metric_statements:
-      - context: resource
-        statements:
-          # deploy (gitsha-buildnum) and container copied straight over
-          - set(attributes["deploy"], attributes["aws.ecs.container.image.tag"])
-          - set(attributes["container"], attributes["aws.ecs.container.name"])
+  # Create ONLY the ECS labels we care about as RESOURCE attributes.
+  # NOTE: your ADOT Collector build (v0.46.0) does NOT include the transform processor,
+  # so we cannot regex-extract the short task id here. We'll keep full ARN and optionally
+  # shorten in Grafana later via label_replace().
+  resource/ecs_labels:
+    attributes:
+      # 1) Keep task ARN (unique per running task) for grouping per-task
+      - key: ecs_task_arn
+        action: upsert
+        from_attribute: aws.ecs.task.arn
 
-          # ecs_task = last path segment of task ARN
-          - set(attributes["ecs_task"], replace_pattern(attributes["aws.ecs.task.arn"], ".*/", ""))
+      # 2) Image tag (your gitsha-buildnumber) into git_sha_build
+      - key: git_sha_build
+        action: upsert
+        from_attribute: aws.ecs.container.image.tag
 
-          # cleanup (delete raw + sensitive)
-          - delete_key(attributes, "aws.ecs.task.arn")
-          - delete_key(attributes, "aws.ecs.cluster.arn")
-          - delete_key(attributes, "aws.ecs.cluster.name")
-          - delete_key(attributes, "aws.ecs.container.name")
-          - delete_key(attributes, "aws.ecs.container.image.name")
-          - delete_key(attributes, "aws.ecs.container.image.tag")
+      # 3) container name i.e "app" or "adot-collector"
+      - key: container
+        action: upsert
+        from_attribute: aws.ecs.container.name
 
-          - delete_key(attributes, "cloud.account.id")
-          - delete_key(attributes, "cloud.region")
-          - delete_key(attributes, "cloud.provider")
+      # drop sensitive/noisy cloud + raw ecs metadata so AMP label set stays clean
+      - key: cloud.account.id
+        action: delete
+      - key: cloud.region
+        action: delete
+      - key: cloud.provider
+        action: delete
+
+      - key: aws.ecs.task.arn
+        action: delete
+      - key: aws.ecs.cluster.arn
+        action: delete
+      - key: aws.ecs.cluster.name
+        action: delete
+      - key: aws.ecs.container.name
+        action: delete
+      - key: aws.ecs.container.image.name
+        action: delete
+      - key: aws.ecs.container.image.tag
+        action: delete
 
   attributes/http_normalize: # map spring otlp starter keys to xray keys
     actions:
@@ -104,7 +122,7 @@ exporters:
     endpoint: ${AMP_REMOTE_WRITE_ENDPOINT}
     auth:
       authenticator: sigv4auth
-    resource_to_telemetry_conversion: #ecs metadata become labels on time series.
+    resource_to_telemetry_conversion: # ecs metadata become labels on time series
       enabled: true
 
   # export traces to AWS X-Ray
@@ -119,10 +137,10 @@ service:
   pipelines:
     metrics:
       receivers: [prometheus]
-      processors: [resourcedetection/ecs,transform/ecs_labels]
+      processors: [resourcedetection/ecs, resource/ecs_labels]
       exporters: [prometheusremotewrite]
 
-    #traces pipeline (OTLP in, X-Ray out)
+    # traces pipeline (OTLP in, X-Ray out)
     traces:
       receivers: [otlp]
       processors: [attributes/http_normalize, filter/drop_actuator_spans]
