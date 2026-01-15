@@ -29,48 +29,29 @@ processors:
     timeout: 2s
     override: false
 
-  # create friendly names
-  attributes/ecs_labels:
-    actions:
-      # 1) Extract a short task id from the ARN into ecs_task
-      #    Example ARN: ...:task/ecs-cluster-prod/1234567890abcdef
-      - key: ecs_task
-        action: extract
-        from_attribute: aws.ecs.task.arn
-        pattern: ".*/(?P<ecs_task>[^/]+)$"
+  transform/ecs_labels:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          # deploy (gitsha-buildnum) and container copied straight over
+          - set(attributes["deploy"], attributes["aws.ecs.container.image.tag"])
+          - set(attributes["container"], attributes["aws.ecs.container.name"])
 
-      # 2) Copy image tag (your gitsha-buildnumber) into deploy
-      - key: git_sha_build
-        action: upsert
-        from_attribute: aws.ecs.container.image.tag
+          # ecs_task = last path segment of task ARN
+          - set(attributes["ecs_task"], replace_pattern(attributes["aws.ecs.task.arn"], ".*/", ""))
 
-      # 3) container name i.e "app" or "adot-collector"
-      - key: container
-        action: upsert
-        from_attribute: aws.ecs.container.name
+          # cleanup (delete raw + sensitive)
+          - delete_key(attributes, "aws.ecs.task.arn")
+          - delete_key(attributes, "aws.ecs.cluster.arn")
+          - delete_key(attributes, "aws.ecs.cluster.name")
+          - delete_key(attributes, "aws.ecs.container.name")
+          - delete_key(attributes, "aws.ecs.container.image.name")
+          - delete_key(attributes, "aws.ecs.container.image.tag")
 
-  #drop everything else
-  attributes/ecs_cleanup:
-    actions:
-      - key: cloud.account.id
-        action: delete
-      - key: cloud.region
-        action: delete
-      - key: cloud.provider
-        action: delete
-
-      - key: aws.ecs.task.arn
-        action: delete
-      - key: aws.ecs.cluster.arn
-        action: delete
-      - key: aws.ecs.cluster.name
-        action: delete
-      - key: aws.ecs.container.name
-        action: delete
-      - key: aws.ecs.container.image.name
-        action: delete
-      - key: aws.ecs.container.image.tag
-        action: delete
+          - delete_key(attributes, "cloud.account.id")
+          - delete_key(attributes, "cloud.region")
+          - delete_key(attributes, "cloud.provider")
 
   attributes/http_normalize: # map spring otlp starter keys to xray keys
     actions:
@@ -138,11 +119,11 @@ service:
   pipelines:
     metrics:
       receivers: [prometheus]
-      processors: [resourcedetection/ecs,attributes/ecs_labels,attributes/ecs_cleanup]
+      processors: [resourcedetection/ecs,transform/ecs_labels]
       exporters: [prometheusremotewrite]
 
     #traces pipeline (OTLP in, X-Ray out)
     traces:
       receivers: [otlp]
-      processors: [attributes/http_normalize, filter/drop_actuator_spans,attributes/ecs_cleanup]
+      processors: [attributes/http_normalize, filter/drop_actuator_spans]
       exporters: [awsxray]
