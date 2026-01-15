@@ -21,6 +21,49 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+processors:
+  attributes/http_normalize: # map spring otlp starter keys to xray keys
+    actions:
+      # Build standard HTTP semconv keys from what you actually receive
+      - key: http.request.method
+        action: upsert
+        from_attribute: method
+
+      - key: url.path
+        action: upsert
+        from_attribute: uri
+
+      # Best case is route template. Does not exist yet, so path is the fallback.
+      - key: http.route
+        action: upsert
+        from_attribute: uri
+
+      - key: http.response.status_code
+        action: upsert
+        from_attribute: status
+
+      # status is currently "200" as a string. Convert after copy.
+      - key: http.response.status_code
+        action: convert
+        converted_type: int
+
+      # Optional: keep the simpler alias keys too
+      - key: http.method
+        action: upsert
+        from_attribute: method
+
+      - key: http.status_code
+        action: upsert
+        from_attribute: http.response.status_code
+
+    filter/drop_actuator_spans: # stops startup spans before service is ready (but port is binded)
+      traces:
+        span:
+          - 'attributes["uri"] == "/actuator/prometheus"'
+          - 'attributes["uri"] == "/actuator/health"'
+          - 'attributes["uri"] == "/actuator/health/liveness"'
+          - 'attributes["uri"] == "/actuator/health/readiness"'
+
 extensions:
   sigv4auth:
     region: ${AWS_REGION}
@@ -45,7 +88,8 @@ service:
       receivers: [prometheus]
       exporters: [prometheusremotewrite]
 
-    # NEW: traces pipeline (OTLP in, X-Ray out)
+    #traces pipeline (OTLP in, X-Ray out)
     traces:
       receivers: [otlp]
+      processors: [attributes/http_normalize, filter/drop_actuator_spans]
       exporters: [awsxray]
