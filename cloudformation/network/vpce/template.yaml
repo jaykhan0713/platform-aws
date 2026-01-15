@@ -294,8 +294,8 @@ Outputs:
   SsmVpcEndpointId:
     Value: !Ref SsmVpcEndpoint
 
-  SsmMessagesVpcEndpointId:
-    Value: !Ref SsmMessagesVpcEndpoint
-
-  Ec2MessagesVpcEndpointId:
-    Value: !Ref Ec2MessagesVpcEndpoint
+#  SsmMessagesVpcEndpointId:
+#    Value: !Ref SsmMessagesVpcEndpoint
+#
+#  Ec2MessagesVpcEndpointId:
+#    Value: !Ref Ec2MessagesVpcEndpoint
