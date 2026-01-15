@@ -56,13 +56,13 @@ processors:
         action: upsert
         from_attribute: http.response.status_code
 
-    filter/drop_actuator_spans: # stops startup spans before service is ready (but port is binded)
-      traces:
-        span:
-          - 'attributes["uri"] == "/actuator/prometheus"'
-          - 'attributes["uri"] == "/actuator/health"'
-          - 'attributes["uri"] == "/actuator/health/liveness"'
-          - 'attributes["uri"] == "/actuator/health/readiness"'
+  filter/drop_actuator_spans: # stops startup spans before service is ready (but port is binded)
+    traces:
+      span:
+        - 'attributes["uri"] == "/actuator/prometheus"'
+        - 'attributes["uri"] == "/actuator/health"'
+        - 'attributes["uri"] == "/actuator/health/liveness"'
+        - 'attributes["uri"] == "/actuator/health/readiness"'
 
 extensions:
   sigv4auth:
