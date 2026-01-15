@@ -188,56 +188,55 @@ Resources:
         - Key: ManagedBy
           Value: cloudformation
 
-# TODO: When ECS Exec is needed. Setup below + IAM role+policies for ECS Exec
-#  # ssmmessages (SSM Messages) data/control channel for interactive sessions.
-#  # This is the "tunnel" endpoint used by ECS Exec session traffic (interactive shell / command stream).
-#  # Without this, execute-command typically fails or hangs because the session channels cannot be opened.
-#  SsmMessagesVpcEndpoint:
-#    Type: AWS::EC2::VPCEndpoint
-#    Properties:
-#      VpcEndpointType: Interface
-#      VpcId: !Ref VpcId
-#      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssmmessages"
-#      PrivateDnsEnabled: true
-#      SubnetIds:
-#        - !Ref PrivateSubnetAId
-#        - !Ref PrivateSubnetBId
-#      SecurityGroupIds:
-#        - !Ref VpcEndpointSecurityGroup
-#      Tags:
-#        - Key: Name
-#          Value: ssm-messages-vpce-prod
-#        - Key: Project
-#          Value: jay-platform
-#        - Key: Env
-#          Value: prod
-#        - Key: ManagedBy
-#          Value: cloudformation
-#
-#  # ec2messages (EC2 Messages) supporting messaging channel used by SSM agent style communications.
-#  # ECS Exec relies on this endpoint as part of the SSM messaging backend in many setups.
-#  # Think of it as a companion to ssmmessages that SSM uses for session/message plumbing.
-#  Ec2MessagesVpcEndpoint:
-#    Type: AWS::EC2::VPCEndpoint
-#    Properties:
-#      VpcEndpointType: Interface
-#      VpcId: !Ref VpcId
-#      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ec2messages"
-#      PrivateDnsEnabled: true
-#      SubnetIds:
-#        - !Ref PrivateSubnetAId
-#        - !Ref PrivateSubnetBId
-#      SecurityGroupIds:
-#        - !Ref VpcEndpointSecurityGroup
-#      Tags:
-#        - Key: Name
-#          Value: ec2-messages-vpce-prod
-#        - Key: Project
-#          Value: jay-platform
-#        - Key: Env
-#          Value: prod
-#        - Key: ManagedBy
-#          Value: cloudformation
+  # ssmmessages (SSM Messages) data/control channel for interactive sessions.
+  # This is the "tunnel" endpoint used by ECS Exec session traffic (interactive shell / command stream).
+  # Without this, execute-command typically fails or hangs because the session channels cannot be opened.
+  SsmMessagesVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ssmmessages"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ssm-messages-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
+
+  # ec2messages (EC2 Messages) supporting messaging channel used by SSM agent style communications.
+  # ECS Exec relies on this endpoint as part of the SSM messaging backend in many setups.
+  # Think of it as a companion to ssmmessages that SSM uses for session/message plumbing.
+  Ec2MessagesVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      VpcId: !Ref VpcId
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.ec2messages"
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetBId
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ec2-messages-vpce-prod
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
 
 # TODO: kms vpce for SSM SecureStrings when needed
 
@@ -294,8 +293,8 @@ Outputs:
   SsmVpcEndpointId:
     Value: !Ref SsmVpcEndpoint
 
-#  SsmMessagesVpcEndpointId:
-#    Value: !Ref SsmMessagesVpcEndpoint
-#
-#  Ec2MessagesVpcEndpointId:
-#    Value: !Ref Ec2MessagesVpcEndpoint
+  SsmMessagesVpcEndpointId:
+    Value: !Ref SsmMessagesVpcEndpoint
+
+  Ec2MessagesVpcEndpointId:
+    Value: !Ref Ec2MessagesVpcEndpoint
