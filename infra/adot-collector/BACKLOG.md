@@ -1,2 +1,2 @@
-- Currently this image has to be manually pushed to docker. Can IaC this (via volume/ssm)
-- FROM public.ecr.aws/aws-observability/aws-otel-collector:latest, change latest to a stable base.
+- Currently this image has to be manually pushed to docker. Can IaC this (use cloudformation, codebuild, ssm etc)
+- #TODO: awsecscontainermetrics for ECS and container level metrics. CPU+memory, network etc

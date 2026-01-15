@@ -12,6 +12,11 @@ receivers:
               replacement: ${SERVICE_NAME}
             - target_label: env
               replacement: ${ENV}
+            - target_label: container
+              replacement: ${APP_CONTAINER_NAME}
+            - target_label: git_sha_build
+              replacement: ${GIT_SHA_BUILD}
+
 
   # receive traces from your app via OTLP
   otlp:
@@ -35,20 +40,10 @@ processors:
   # shorten in Grafana later via label_replace().
   resource/ecs_labels:
     attributes:
-      # 1) Keep task ARN (unique per running task) for grouping per-task
-      - key: ecs_task_arn
+      # task id after taskARN.../<ID>
+      - key: ecs_task
         action: upsert
-        from_attribute: aws.ecs.task.arn
-
-      # 2) Image tag (your gitsha-buildnumber) into git_sha_build
-      - key: git_sha_build
-        action: upsert
-        from_attribute: aws.ecs.container.image.tag
-
-      # 3) container name i.e "app" or "adot-collector"
-      - key: container
-        action: upsert
-        from_attribute: aws.ecs.container.name
+        from_attribute: aws.ecs.task.id
 
       # drop sensitive/noisy cloud + raw ecs metadata so AMP label set stays clean
       - key: cloud.account.id
@@ -57,18 +52,31 @@ processors:
         action: delete
       - key: cloud.provider
         action: delete
-
-      - key: aws.ecs.task.arn
+      - key: cloud.platform
         action: delete
+      - key: cloud.availability_zone
+        action: delete
+
       - key: aws.ecs.cluster.arn
         action: delete
-      - key: aws.ecs.cluster.name
+      - key: aws.ecs.task.arn
         action: delete
-      - key: aws.ecs.container.name
+      - key: aws.ecs.task.family
         action: delete
-      - key: aws.ecs.container.image.name
+      - key: aws.ecs.task.id
         action: delete
-      - key: aws.ecs.container.image.tag
+      - key: aws.ecs.task.revision
+        action: delete
+      - key: aws.ecs.launchtype
+        action: delete
+
+      - key: aws.log.group.arns
+        action: delete
+      - key: aws.log.group.names
+        action: delete
+      - key: aws.log.stream.arns
+        action: delete
+      - key: aws.log.stream.names
         action: delete
 
   attributes/http_normalize: # map spring otlp starter keys to xray keys
