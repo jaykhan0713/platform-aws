@@ -8,7 +8,7 @@ Resources:
       ClusterName: ecs-cluster-prod
       ClusterSettings:
         - Name: containerInsights
-          Value: enabled
+          Value: disabled
       Tags:
         - Key: Name
           Value: ecs-cluster-prod
