@@ -48,29 +48,6 @@ Parameters:
     Type: Number
     Default: 1
 
-  Cpu:
-    Type: String
-    Default: '512'
-    AllowedValues:
-      - '256'
-      - '512'
-      - '1024'
-      - '2048'
-      - '4096'
-
-  Memory:
-    Type: String
-    Default: '1024'
-    AllowedValues:
-      - '512'
-      - '1024'
-      - '2048'
-      - '3072'
-      - '4096'
-      - '8192'
-      - '16384'
-      - '30720'
-
   # AMP (Amazon Managed Service for Prometheus) workspace wiring.
   # These values should come from the per-env "observability" stack outputs.
   AmpWorkspaceId:
@@ -170,6 +147,33 @@ Resources:
                 Action:
                   - aps:RemoteWrite
                 Resource: !Sub arn:aws:aps:${AWS::Region}:${AWS::AccountId}:workspace/${AmpWorkspaceId}
+
+        - PolicyName: AllowSsmParametersRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadParamsByPath
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/jay-platform/${EnvTag}/global/*
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/jay-platform/${EnvTag}/services/edge-service/*
+
+        - PolicyName: AllowEcsExecSsmMessages
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: EcsExecSsmMessages
+                Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: "*"
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-task-role-${EnvTag}
@@ -346,72 +350,6 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref EdgeTargetGroupGreen
 
-  # ----------------------------- TODO:Remove and use pipeline for task definition
-  # Task Definition
-  # -----------------------------
-  EdgeServiceTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: !Sub ${ProjectTag}-edge-service-${EnvTag}
-      RequiresCompatibilities:
-        - FARGATE
-      NetworkMode: awsvpc
-      Cpu: !Ref Cpu
-      Memory: !Ref Memory
-      ExecutionRoleArn: !GetAtt EdgeServiceTaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt EdgeServiceTaskRole.Arn
-      RuntimePlatform:
-        CpuArchitecture: X86_64
-        OperatingSystemFamily: LINUX
-      ContainerDefinitions:
-        - Name: app
-          Image: !Ref ContainerImage
-          Essential: true
-          PortMappings:
-            - ContainerPort: !Ref ContainerPort
-              Protocol: tcp
-          Environment:
-            - Name: SPRING_PROFILES_ACTIVE
-              Value: !Ref EnvTag
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref EdgeServiceLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-        # ADOT Collector sidecar: scrapes /actuator/prometheus locally and remote_writes into AMP.
-        # IMPORTANT: Essential=false so the app stays healthy even if the collector misconfigures/crashes.
-        - Name: adot-collector
-          Image: !Ref AdotCollectorImage
-          Essential: false
-          Environment:
-            - Name: AWS_REGION
-              Value: !Ref AWS::Region
-            - Name: AMP_REMOTE_WRITE_ENDPOINT
-              Value: !Ref `AmpRemoteWriteEndpoint
-            - Name: SERVICE_NAME
-              Value: !Ref ServiceName
-            - Name: ENV
-              Value: !Ref EnvTag
-            - Name: APP_PORT
-              Value: !Ref ContainerPort
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref EdgeAdotLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-
-      Tags:
-        - Key: Name
-          Value: !Sub ${ProjectTag}-edge-taskdef-${EnvTag}
-        - Key: Project
-          Value: !Ref ProjectTag
-        - Key: Env
-          Value: !Ref EnvTag
-        - Key: ManagedBy
-          Value: !Ref ManagedByTag
-
   # -----------------------------
   # ECS Service (CodeDeploy Blue/Green)
   # -----------------------------
@@ -426,9 +364,10 @@ Resources:
       DesiredCount: !Ref DesiredCount
       LaunchType: FARGATE
       PlatformVersion: LATEST
+      EnableExecuteCommand: true
       DeploymentController:
         Type: CODE_DEPLOY
-      #TaskDefinition: !Ref EdgeServiceTaskDefinition
+      #TaskDefinition: !Ref EdgeServiceTaskDefinition **REMOVED**
       # IMPORTANT: CODE_DEPLOY controls TaskDefinition updates and deployments.
       # CloudFormation must not attempt to update TaskDefinition on a CODE_DEPLOY service.
       NetworkConfiguration:
@@ -522,9 +461,6 @@ Outputs:
 
   EdgeServiceName:
     Value: !Ref ServiceName
-
-  TaskDefinitionArn:
-    Value: !Ref EdgeServiceTaskDefinition
 
   CodeDeployAppName:
     Value: !Ref EdgeCodeDeployApp

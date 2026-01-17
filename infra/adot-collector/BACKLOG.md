@@ -1,2 +1,3 @@
 - Currently this image has to be manually pushed to docker. Can IaC this (use cloudformation, codebuild, ssm etc)
 - #TODO: awsecscontainermetrics for ECS and container level metrics. CPU+memory, network etc
+- shorten ecs_task id and git_sha_build at ingestion for better visual

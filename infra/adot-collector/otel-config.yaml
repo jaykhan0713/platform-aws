@@ -17,7 +17,6 @@ receivers:
             - target_label: git_sha_build
               replacement: ${GIT_SHA_BUILD}
 
-
   # receive traces from your app via OTLP
   otlp:
     protocols:
