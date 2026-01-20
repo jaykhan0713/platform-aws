@@ -1,4 +1,5 @@
 receivers:
+  # prometheus scraper that scrapes app's /actuator/prometheus endpoint periodically
   prometheus:
     config:
       scrape_configs:
@@ -17,7 +18,7 @@ receivers:
             - target_label: git_sha_build
               replacement: ${GIT_SHA_BUILD}
 
-  # receive traces from your app via OTLP
+  # receive traces from app to otlp collector
   otlp:
     protocols:
       grpc:
@@ -140,6 +141,9 @@ service:
   telemetry:
     logs:
       level: "info"
+  # adot/OTLP exporter signs every HTTP or gRPC request the same way the AWS CLI signs API calls.
+  # This lets AWS services accept telemetry without API keys.
+  # prometheusremotewrite needs this. awsxray uses sigv4auth by default
   extensions: [sigv4auth]
   pipelines:
     metrics:
