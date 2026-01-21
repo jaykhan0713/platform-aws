@@ -114,6 +114,19 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: AllowSsmParametersRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadParamsByPath
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/jay-platform/${EnvTag}/core/*
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-task-execution-${EnvTag}
@@ -159,7 +172,7 @@ Resources:
                   - ssm:GetParameters
                   - ssm:GetParametersByPath
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/jay-platform/${EnvTag}/global/*
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/jay-platform/${EnvTag}/core/*
                   - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/jay-platform/${EnvTag}/services/edge-service/*
 
         - PolicyName: AllowEcsExecSsmMessages
