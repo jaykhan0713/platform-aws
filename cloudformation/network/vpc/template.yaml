@@ -1,6 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
+Parameters:
+  ServiceDiscoveryNamespaceName:
+    Type: String
+    Default: services.internal
+
 Resources:
+  # -----------------------------
+  # VPC
+  # -----------------------------
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -158,18 +166,62 @@ Resources:
     Properties:
       SubnetId: !Ref PrivateSubnetB
       RouteTableId: !Ref PrivateRouteTable
+
+  # -----------------------------
+  # Service Discovery
+  # -----------------------------
+
+  ServiceDiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Ref ServiceDiscoveryNamespaceName
+      Vpc: !Ref VPC
+      Description: !Sub ${AWS::StackName} service discovery namespace
+      Tags:
+        - Key: Project
+          Value: jay-platform
+        - Key: Env
+          Value: prod
+        - Key: ManagedBy
+          Value: cloudformation
+        - Key: Name
+          Value: !Sub service-discovery-${ServiceDiscoveryNamespaceName}-prod
 Outputs:
+  # -----------------------------
+  # VPC Outputs
+  # -----------------------------
   VpcId:
     Value: !Ref VPC
+    Export:
+      Name: jay-platform-network-prod-vpc-id
   PublicSubnetAId:
     Value: !Ref PublicSubnetA
   PublicSubnetBId:
     Value: !Ref PublicSubnetB
   PrivateSubnetAId:
     Value: !Ref PrivateSubnetA
+    Export:
+      Name: jay-platform-network-prod-private-subnet-a-id
   PrivateSubnetBId:
     Value: !Ref PrivateSubnetB
+    Export:
+      Name: jay-platform-network-prod-private-subnet-b-id
   PrivateRouteTableId:
     Value: !Ref PrivateRouteTable
   VpcCidr:
     Value: 10.0.0.0/16
+    Export:
+      Name: jay-platform-network-prod-vpc-cidr
+
+  # -----------------------------
+  # Service Discovery Outputs
+  # -----------------------------
+  ServiceDiscoveryNamespaceId:
+    Value: !Ref ServiceDiscoveryNamespace
+    Export:
+      Name: jay-platform-network-prod-service-discovery-namespace-id
+
+  ServiceDiscoveryNamespaceName:
+    Value: !Ref ServiceDiscoveryNamespaceName
+    Export:
+      Name: jay-platform-network-prod-service-discovery-namespace-name

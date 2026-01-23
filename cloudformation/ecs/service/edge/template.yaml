@@ -407,6 +407,35 @@ Resources:
           Value: !Ref ManagedByTag
 
   # -----------------------------
+  # ECS Service Auto-Scaling
+  # -----------------------------
+  EdgeServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn:
+      - EdgeEcsService
+      - EdgeProdListener
+      - EdgeTestListener
+    Properties:
+      MaxCapacity: 6
+      MinCapacity: 1
+      ResourceId: !Sub service/${ClusterName}/${ServiceName}
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  EdgeServiceCpuTargetTrackingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${ServiceName}-cpu-tt
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref EdgeServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70
+        ScaleInCooldown: 180
+        ScaleOutCooldown: 60
+
+  # -----------------------------
   # CodeDeploy (ECS Blue/Green)
   # -----------------------------
   EdgeCodeDeployApp:
