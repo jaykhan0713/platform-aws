@@ -71,7 +71,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /ecs/${ProjectTag}/${EnvTag}/edge-service
-      RetentionInDays: 14
+      RetentionInDays: 3
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-service-logs-${EnvTag}
@@ -87,7 +87,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /ecs/${ProjectTag}/${EnvTag}/edge-service-adot
-      RetentionInDays: 14
+      RetentionInDays: 3
       Tags:
         - Key: Name
           Value: !Sub ${ProjectTag}-edge-service-adot-logs-${EnvTag}
@@ -396,6 +396,9 @@ Resources:
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref EdgeTargetGroupBlue
       HealthCheckGracePeriodSeconds: 60
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace: !ImportValue jay-platform-network-prod-service-connect-http-namespace-arn
       Tags:
         - Key: Name
           Value: !Sub ${ServiceName}

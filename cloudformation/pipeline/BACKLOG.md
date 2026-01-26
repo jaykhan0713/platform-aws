@@ -1,2 +1,0 @@
-- Move pipeline work to IaC via CDK
-- Pass ACCOUNT_ID, REGION etc into CodeBuild as parameters from CDK

@@ -1,10 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Parameters:
-  ServiceDiscoveryNamespaceName:
-    Type: String
-    Default: services.internal
-
 Resources:
   # -----------------------------
   # VPC
@@ -171,21 +166,12 @@ Resources:
   # Service Discovery
   # -----------------------------
 
-  ServiceDiscoveryNamespace:
-    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+  ServiceConnectNamespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
     Properties:
-      Name: !Ref ServiceDiscoveryNamespaceName
-      Vpc: !Ref VPC
-      Description: !Sub ${AWS::StackName} service discovery namespace
-      Tags:
-        - Key: Project
-          Value: jay-platform
-        - Key: Env
-          Value: prod
-        - Key: ManagedBy
-          Value: cloudformation
-        - Key: Name
-          Value: !Sub service-discovery-${ServiceDiscoveryNamespaceName}-prod
+      Name: !Sub jay-platform-prod
+      Description: !Sub Service Connect namespace for internal services
+
 Outputs:
   # -----------------------------
   # VPC Outputs
@@ -208,6 +194,8 @@ Outputs:
       Name: jay-platform-network-prod-private-subnet-b-id
   PrivateRouteTableId:
     Value: !Ref PrivateRouteTable
+    Export:
+      Name: jay-platform-network-prod-private-route-table-id
   VpcCidr:
     Value: 10.0.0.0/16
     Export:
@@ -216,12 +204,8 @@ Outputs:
   # -----------------------------
   # Service Discovery Outputs
   # -----------------------------
-  ServiceDiscoveryNamespaceId:
-    Value: !Ref ServiceDiscoveryNamespace
+  ServiceConnectNamespaceArn:
+    Description: Service Connect HTTP namespace ARN
+    Value: !GetAtt ServiceConnectNamespace.Arn
     Export:
-      Name: jay-platform-network-prod-service-discovery-namespace-id
-
-  ServiceDiscoveryNamespaceName:
-    Value: !Ref ServiceDiscoveryNamespaceName
-    Export:
-      Name: jay-platform-network-prod-service-discovery-namespace-name
+      Name: jay-platform-network-prod-service-connect-http-namespace-arn

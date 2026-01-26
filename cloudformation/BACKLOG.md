@@ -14,3 +14,7 @@
 |     6 | Metrics shipping   | Actually get `/actuator/prometheus` into AMP | ADOT collector (sidecar per service preferred) scraping actuator and remote-writing to AMP   | ECS task definition         | You see your service metrics in Grafana (JVM + http metrics)   |
 |     7 | Tracing backend    | Get traces into AWS                          | ADOT collector exports OTLP to **X-Ray** (recommended)                                       | ECS task definition + X-Ray | Traces show up in X-Ray service map / traces list              |
 |     8 | Dashboards         | Make it look portfolio-ready                 | A couple Grafana dashboards + alarms (optional)                                              | AMG + CloudWatch            | You have a dashboard link you can share                        |
+
+done: 1, 3, 4, 5, 6, 7, 
+todo: 2
+in-progress: 8- has golden signals so far, needs more work.
