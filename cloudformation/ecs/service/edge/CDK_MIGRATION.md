@@ -4,7 +4,7 @@
 ---
 task role:
 
-AllowAmpRemoteWrite:
+AllowApsRemoteWrite:
 
 ```
 {
@@ -16,7 +16,7 @@ AllowAmpRemoteWrite:
             ],
             "Resource": "arn:aws:aps:us-west-2:454842419646:workspace/ws-2eea101e-6aad-4579-a198-d29198b23426",
             "Effect": "Allow",
-            "Sid": "AmpRemoteWrite"
+            "Sid": "ApsRemoteWrite"
         }
     ]
 }
